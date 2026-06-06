@@ -5,6 +5,7 @@ from app.models.openai_message import OpenAIMessage
 def build_messages(
     request: ChatRequest,
     system_prompt: str,
+    context: str = "",
 ) -> list[OpenAIMessage]:
 
     messages = [
@@ -13,6 +14,19 @@ def build_messages(
             content=system_prompt,
         )
     ]
+
+    if context:
+
+        messages.append(
+            OpenAIMessage(
+                role="system",
+                content=f"""
+Knowledge Base:
+
+{context}
+""".strip(),
+            )
+        )
 
     for message in request.message_history:
 

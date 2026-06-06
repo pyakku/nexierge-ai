@@ -234,6 +234,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "openai" },
     { name = "pinecone" },
     { name = "pydantic" },
@@ -244,6 +245,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.136.3" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai", specifier = ">=2.41.0" },
     { name = "pinecone", specifier = ">=9.1.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
