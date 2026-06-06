@@ -13,4 +13,4 @@ class ChatRequest(BaseModel):
     tone: str
     message_history: list[Message]
     guest_stay_id: str
-    brain_id: str
+    brain_id: int

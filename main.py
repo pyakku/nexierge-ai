@@ -1,9 +1,9 @@
-from app.agents.agent import HotelAgent
+from app.agents.agent import Agent
 from app.models.chat_request import ChatRequest
 from app.models.message import Message
 
 
-agent = HotelAgent()
+agent = Agent()
 
 request = ChatRequest(
     hotel_name="Nexierge Hotel",
@@ -14,7 +14,7 @@ request = ChatRequest(
     phone_number="+919999999999",
     tone="friendly",
     guest_stay_id="stay_123",
-    brain_id="brain_001",
+    brain_id=4,
     message_history=[
         Message(
             message="Hi",
