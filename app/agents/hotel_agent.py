@@ -1,14 +1,14 @@
 from app.models.agent_response import AgentResponse
+from app.models.chat_request import ChatRequest
 
 
 class HotelAgent:
-    def respond(self, message: str) -> AgentResponse:
+
+    def respond(
+        self,
+        request: ChatRequest,
+    ) -> AgentResponse:
+
         return AgentResponse(
-            response=f"You said: {message}",
-            handoff=False,
-            media=[],
-            is_confirmation=False,
-            suggested_question=None,
-            service_catalog=None,
-            data_used=[],
+            response=f"Received query: {request.query}",
         )
