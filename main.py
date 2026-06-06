@@ -1,4 +1,4 @@
-from app.agents.hotel_agent import HotelAgent
+from app.agents.agent import HotelAgent
 from app.models.chat_request import ChatRequest
 from app.models.message import Message
 
