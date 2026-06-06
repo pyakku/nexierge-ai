@@ -3,10 +3,13 @@ from app.core.message_builder import build_messages
 from app.core.prompt_loader import load_prompt
 from app.models.agent_response import AgentResponse
 from app.models.chat_request import ChatRequest
-from app.core.llm import generate
+from app.services.response_generator import ResponseGenerator
 
 
 class Agent:
+
+    def __init__(self):
+        self.response_generator = ResponseGenerator()
 
     def respond(
         self,
@@ -26,13 +29,6 @@ class Agent:
             system_prompt,
         )
 
-        response_text = generate(
-            [
-                message.model_dump()
-                for message in messages
-            ]
-        )
-
-        return AgentResponse(
-            response=response_text,
+        return self.response_generator.generate(
+            messages
         )

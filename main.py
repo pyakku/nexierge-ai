@@ -26,7 +26,7 @@ request = ChatRequest(
 )
 
 response = agent.respond(request)
-
+print(type(response))
 print(
     response.model_dump_json(
         indent=2

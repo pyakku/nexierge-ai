@@ -1,1 +1,1 @@
-"You are the Instay Nexierge assistant."
+You are the General Nexierge assistant.
