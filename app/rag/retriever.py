@@ -58,27 +58,27 @@ class Retriever:
 
         threshold = best_score * SCORE_RATIO
 
-        print("\n=== RETRIEVAL RESULTS ===")
-        print(f"Best Score: {best_score}")
-        print(f"Threshold: {threshold}")
+        # print("\n=== RETRIEVAL RESULTS ===")
+        # print(f"Best Score: {best_score}")
+        # print(f"Threshold: {threshold}")
 
         filtered_ids = []
 
         for match in matches:
 
-            print(
-                match["id"],
-                match["score"]
-            )
+            # print(
+            #     match["id"],
+            #     match["score"]
+            # )
 
             if match["score"] >= threshold:
                 filtered_ids.append(
                     match["id"]
                 )
 
-        print(
-            f"\nKept {len(filtered_ids)} chunks"
-        )
+        # print(
+        #     f"\nKept {len(filtered_ids)} chunks"
+        # )
 
         return filtered_ids[
             :MAX_CONTEXT_ITEMS

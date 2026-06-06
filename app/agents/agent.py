@@ -41,8 +41,8 @@ class Agent:
             knowledge
         )
 
-        print("\n=== CONTEXT ===")
-        print(context)
+        # print("\n=== CONTEXT ===")
+        # print(context)
 
         messages = build_messages(
             request=request,
