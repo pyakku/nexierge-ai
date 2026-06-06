@@ -1,6 +1,9 @@
-def main():
-    print("Hello from nexierge-ai!")
+from app.agents.hotel_agent import HotelAgent
 
+agent = HotelAgent()
 
-if __name__ == "__main__":
-    main()
+response = agent.respond(
+    "What time is breakfast?"
+)
+
+print(response.model_dump_json(indent=2))
