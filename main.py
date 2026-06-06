@@ -1,4 +1,5 @@
 from app.agents.agent import Agent
+from app.models.brain import Brain
 from app.models.chat_request import ChatRequest
 from app.models.message import Message
 
@@ -14,7 +15,7 @@ request = ChatRequest(
     phone_number="+919999999999",
     tone="friendly",
     guest_stay_id="stay_123",
-    brain_id=4,
+    brain_id=Brain.GENERAL,
     message_history=[
         Message(
             message="Hi",
@@ -26,4 +27,8 @@ request = ChatRequest(
 
 response = agent.respond(request)
 
-print(response.model_dump_json(indent=2))
+print(
+    response.model_dump_json(
+        indent=2
+    )
+)

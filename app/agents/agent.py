@@ -1,7 +1,9 @@
 from app.brains.router import get_brain_name
+from app.core.message_builder import build_messages
+from app.core.prompt_loader import load_prompt
 from app.models.agent_response import AgentResponse
 from app.models.chat_request import ChatRequest
-from app.core.prompt_loader import load_prompt
+from app.core.llm import generate
 
 
 class Agent:
@@ -15,10 +17,22 @@ class Agent:
             request.brain_id
         )
 
-        prompt = load_prompt(
+        system_prompt = load_prompt(
             brain
         )
-    
+
+        messages = build_messages(
+            request,
+            system_prompt,
+        )
+
+        response_text = generate(
+            [
+                message.model_dump()
+                for message in messages
+            ]
+        )
+
         return AgentResponse(
-            response=prompt
+            response=response_text,
         )
