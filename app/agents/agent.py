@@ -1,3 +1,5 @@
+from time import perf_counter
+
 from app.brains.router import get_brain_name
 from app.core.context_builder import build_context
 from app.core.message_builder import build_messages
@@ -20,6 +22,8 @@ class Agent:
         request: ChatRequest,
     ) -> AgentResponse:
 
+        start = perf_counter()
+
         brain = get_brain_name(
             request.brain_id
         )
@@ -31,18 +35,20 @@ class Agent:
             ]
         )
 
+        prompt_time = perf_counter()
+
         knowledge = self.knowledge_service.retrieve(
             query=request.query,
             hotel_id=request.hotel_id,
             brain_id=request.brain_id,
+            sandbox=request.sandbox,
         )
+
+        rag_time = perf_counter()
 
         context = build_context(
             knowledge
         )
-
-        # print("\n=== CONTEXT ===")
-        # print(context)
 
         messages = build_messages(
             request=request,
@@ -50,6 +56,32 @@ class Agent:
             context=context,
         )
 
-        return self.response_generator.generate(
+        message_time = perf_counter()
+
+        response = self.response_generator.generate(
             messages
         )
+
+        llm_time = perf_counter()
+
+        print(
+            f"Prompt: {(prompt_time - start) * 1000:.0f}ms"
+        )
+
+        print(
+            f"RAG: {(rag_time - prompt_time) * 1000:.0f}ms"
+        )
+
+        print(
+            f"Messages: {(message_time - rag_time) * 1000:.0f}ms"
+        )
+
+        print(
+            f"LLM: {(llm_time - message_time) * 1000:.0f}ms"
+        )
+
+        print(
+            f"Total: {(llm_time - start) * 1000:.0f}ms"
+        )
+
+        return response

@@ -7,7 +7,7 @@ class ChatRequest(BaseModel):
     hotel_name: str
     guest_language: str
     query: str
-    sandbox: str
+    sandbox: bool =False
     hotel_id: str
     phone_number: str
     tone: str
