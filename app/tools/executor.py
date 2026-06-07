@@ -153,23 +153,20 @@ class ToolExecutor:
                 )
             )
 
+            if not media_items:
+                return ToolResult()
+
+            items_text = "\n\n".join(
+                f"desc: {item.get('desc', '')}\nurl: {item['url']}"
+                for item in media_items
+            )
             return ToolResult(
-                media_context="\n\n".join(
-                    "\n".join(
-                        line
-                        for line in [
-                            "Relevant media:",
-                            item["desc"],
-                            f"URL: {item['url']}",
-                        ]
-                        if line
-                    )
-                    for item in media_items
+                media_context=(
+                    "Relevant media:\n\n"
+                    + items_text
+                    + "\n\nFor each relevant item, include its url in the media array of your response."
                 ),
-                media=[
-                    item["url"]
-                    for item in media_items
-                ],
+                media=[item["url"] for item in media_items],
             )
 
     
