@@ -9,7 +9,7 @@ class ChatRequest(BaseModel):
     sandbox: bool =False
     hotel_id: str
     phone_number: str
-    tone: str
+    tone: dict = {}
     message_history: list[Message]
     guest_stay_id: str
     brain_id: int

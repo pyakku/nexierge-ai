@@ -12,66 +12,67 @@ class ToolDefinition:
 TOOLS = [
     ToolDefinition(
         name="get_answers",
-        description=(
-            "Answer guest questions using the hotel knowledge base"
-        ),
+        description="Answer guest questions using the hotel knowledge base",
     ),
     ToolDefinition(
         name="get_media",
-        description=(
-            "Retrieve photos, videos and other media assets"
-        ),
+        description="Retrieve photos, videos and other media assets",
     ),
     ToolDefinition(
         name="get_service_catalogs",
         description=(
-            "Retrieve hotel service catalogs and available services"
+            "Retrieve hotel service catalogs. "
+            "Returns a list of catalogs with their IDs — "
+            "use the ID with generate_ordering_link."
         ),
     ),
     ToolDefinition(
         name="room_details",
-        description=(
-            "Retrieve room information and room details"
-        ),
+        description="Retrieve room information and room details",
     ),
     ToolDefinition(
         name="generate_ordering_link",
         description=(
-            "Generate an ordering link for a specific service with optional pre-filled details"
+            "Generate an ordering link for a service catalog. "
+            "Call get_service_catalogs first to obtain the service_catalog_id."
         ),
     ),
 ]
 
+_ORDERING_LINK_PARAMS = {
+    "type": "object",
+    "properties": {
+        "service_catalog_id": {
+            "type": "string",
+            "description": "ID of the service catalog returned by get_service_catalogs",
+        }
+    },
+    "required": ["service_catalog_id"],
+}
 
-TOOLS_PROMPT = "\n".join(
-    [
-        (
-            f"{tool.name}: "
-            f"{tool.description}"
-        )
-        for tool in TOOLS
-    ]
-)
+_EMPTY_PARAMS = {"type": "object", "properties": {}, "required": []}
 
 
-def get_tools_prompt(
-    brain_id: int,
-) -> str:
-
-    tools = TOOLS
-
+def get_tool_definitions(brain_id: int) -> list[dict]:
+    """Returns OpenAI function tool schemas for the given brain."""
+    excluded: set[str] = set()
     if brain_id != Brain.GUEST_IN_STAY:
-        tools = [
-            tool
-            for tool in TOOLS
-            if tool.name
-            != "generate_ordering_link"
-        ]
+        excluded.add("generate_ordering_link")
 
-    return "\n".join(
-        (
-            f"{tool.name}: "
-            f"{tool.description}"
+    schemas = []
+    for tool in TOOLS:
+        if tool.name in excluded:
+            continue
+        params = (
+            _ORDERING_LINK_PARAMS
+            if tool.name == "generate_ordering_link"
+            else _EMPTY_PARAMS
         )
-        for tool in tools
-    )
+        schemas.append({
+            "type": "function",
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": params,
+        })
+
+    return schemas

@@ -1,19 +1,18 @@
+import logging
 from time import perf_counter
 
 from app.models.brain import Brain
-from app.rag.knowledge_repository import (
-    KnowledgeRepository,
-)
+from app.rag.knowledge_repository import KnowledgeRepository
 from app.rag.retriever import Retriever
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeService:
 
     def __init__(self):
         self.retriever = Retriever()
-        self.repository = (
-            KnowledgeRepository()
-        )
+        self.repository = KnowledgeRepository()
 
     def retrieve(
         self,
@@ -23,7 +22,7 @@ class KnowledgeService:
         sandbox: bool = False,
     ):
 
-        retrieval_start = perf_counter()
+        start = perf_counter()
 
         ids = self.retriever.retrieve(
             query=query,
@@ -32,29 +31,24 @@ class KnowledgeService:
             sandbox=sandbox,
         )
 
-        retrieval_end = perf_counter()
-
-        print(
-            f"ID Retrieval: {(retrieval_end - retrieval_start) * 1000:.0f}ms"
-        )
+        retrieval_ms = int((perf_counter() - start) * 1000)
 
         if not ids:
             return []
 
         xano_start = perf_counter()
+        knowledge = self.repository.get_by_ids(ids)
+        xano_ms = int((perf_counter() - xano_start) * 1000)
 
-        knowledge = self.repository.get_by_ids(
-            ids
-        )
-
-        xano_end = perf_counter()
-
-        print(
-            f"Xano: {(xano_end - xano_start) * 1000:.0f}ms"
-        )
-
-        print(
-            f"Knowledge Total: {(xano_end - retrieval_start) * 1000:.0f}ms"
+        logger.debug(
+            "knowledge.complete",
+            extra={
+                "retrieval_ms": retrieval_ms,
+                "xano_ms": xano_ms,
+                "total_ms": retrieval_ms + xano_ms,
+                "ids_found": len(ids),
+                "items_returned": len(knowledge),
+            },
         )
 
         return knowledge

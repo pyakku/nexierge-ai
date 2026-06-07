@@ -1,3 +1,8 @@
+import json
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from time import perf_counter
+
 from app.models.chat_request import (
     ChatRequest,
 )
@@ -16,6 +21,9 @@ from app.tools.service_catalog_repository import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 class ToolExecutor:
 
     def __init__(self):
@@ -29,11 +37,21 @@ class ToolExecutor:
             ServiceCatalogRepository()
         )
 
+    # Tools that must run after all others (depend on prior results).
+    _RUNS_LAST = {"generate_ordering_link"}
+
     def execute(
         self,
         tools: list[str],
         request: ChatRequest,
     ) -> ToolResult:
+
+        independent = [
+            t for t in tools if t not in self._RUNS_LAST
+        ]
+        dependent = [
+            t for t in tools if t in self._RUNS_LAST
+        ]
 
         knowledge_contexts = []
         media_contexts = []
@@ -42,65 +60,47 @@ class ToolExecutor:
         ordering_link = None
         media = []
 
-        # generate_ordering_link depends on service_catalog_id set by
-        # get_service_catalogs, so it must always run last.
-        tools = sorted(
-            tools,
-            key=lambda t: t == "generate_ordering_link",
-        )
+        def collect(result: ToolResult) -> None:
+            nonlocal service_catalog_id, ordering_link
+            if result.knowledge_context:
+                knowledge_contexts.append(result.knowledge_context)
+            if result.media_context:
+                media_contexts.append(result.media_context)
+            if result.ordering_context:
+                ordering_contexts.append(result.ordering_context)
+            if result.service_catalog_id:
+                service_catalog_id = result.service_catalog_id
+            if result.ordering_link:
+                ordering_link = result.ordering_link
+            media.extend(result.media)
 
-        for tool in tools:
-
-            result = self.execute_tool(
-                tool=tool,
-                request=request,
-                service_catalog_id=service_catalog_id,
+        if len(independent) > 1:
+            with ThreadPoolExecutor() as pool:
+                futures = {
+                    pool.submit(
+                        self.execute_tool, tool, request, None
+                    ): tool
+                    for tool in independent
+                }
+                for future in as_completed(futures):
+                    collect(future.result())
+        elif independent:
+            collect(
+                self.execute_tool(independent[0], request, None)
             )
 
-            if result.knowledge_context:
-                knowledge_contexts.append(
-                    result.knowledge_context
-                )
-
-            if result.media_context:
-                media_contexts.append(
-                    result.media_context
-                )
-
-            if result.ordering_context:
-                ordering_contexts.append(
-                    result.ordering_context
-                )
-
-            if result.service_catalog_id:
-                service_catalog_id = (
-                    result.service_catalog_id
-                )
-
-            if result.ordering_link:
-                ordering_link = (
-                    result.ordering_link
-                )
-
-            media.extend(
-                result.media
+        for tool in dependent:
+            collect(
+                self.execute_tool(tool, request, service_catalog_id)
             )
 
         return ToolResult(
-            knowledge_context="\n\n".join(
-                knowledge_contexts
-            ),
-            media_context="\n\n".join(
-                media_contexts
-            ),
-            ordering_context="\n\n".join(
-                ordering_contexts
-            ),
+            knowledge_context="\n\n".join(knowledge_contexts),
+            media_context="\n\n".join(media_contexts),
+            ordering_context="\n\n".join(ordering_contexts),
             service_catalog_id=service_catalog_id,
             ordering_link=ordering_link,
-            media=list(
-                dict.fromkeys(media)
-            ),
+            media=list(dict.fromkeys(media)),
         )
 
     def execute_tool(
@@ -124,10 +124,19 @@ class ToolExecutor:
                 )
             )
 
+            if not knowledge:
+                return ToolResult(knowledge_context="No relevant knowledge base items found.")
+
+            items_text = "\n\n".join(
+                f"[{item['id']}]\n{item['text']}"
+                for item in knowledge
+            )
             return ToolResult(
-                knowledge_context="\n\n".join(
-                    f"[{item['id']}]\n{item['text']}"
-                    for item in knowledge
+                knowledge_context=(
+                    "Knowledge Base Results:\n"
+                    "Use these items to answer the guest. "
+                    "Add each item's ID (the value in square brackets) to data_used if you reference it.\n\n"
+                    + items_text
                 )
             )
         #
@@ -249,6 +258,70 @@ Generate ordering link using:
             )
 
         return ToolResult()
+
+    def execute_tool_calls(
+        self,
+        tool_calls: list,
+        request: ChatRequest,
+    ) -> tuple[list[dict], str | None, list[str]]:
+        """
+        Execute tool calls from the LLM (tool-use flow).
+
+        Returns:
+            tool_outputs: function_call_output dicts for the next LLM input
+            ordering_link: populated if generate_ordering_link ran
+            media: collected media URLs
+        """
+        tool_outputs = []
+        ordering_link = None
+        media = []
+        catalog_id: str | None = None
+
+        for tc in tool_calls:
+            try:
+                args = json.loads(tc.arguments) if tc.arguments else {}
+            except (json.JSONDecodeError, ValueError):
+                args = {}
+
+            # generate_ordering_link passes service_catalog_id as an argument
+            service_catalog_id = args.get("service_catalog_id") or catalog_id
+
+            tool_start = perf_counter()
+            result = self.execute_tool(
+                tool=tc.name,
+                request=request,
+                service_catalog_id=service_catalog_id,
+            )
+            logger.debug(
+                "tool.executed",
+                extra={
+                    "tool": tc.name,
+                    "latency_ms": int((perf_counter() - tool_start) * 1000),
+                },
+            )
+
+            if result.service_catalog_id:
+                catalog_id = result.service_catalog_id
+            if result.ordering_link:
+                ordering_link = result.ordering_link
+            media.extend(result.media)
+
+            parts = [
+                p for p in [
+                    result.knowledge_context,
+                    result.media_context,
+                    result.ordering_context,
+                ]
+                if p
+            ]
+
+            tool_outputs.append({
+                "type": "function_call_output",
+                "call_id": tc.call_id,
+                "output": "\n\n".join(parts) if parts else "Done.",
+            })
+
+        return tool_outputs, ordering_link, list(dict.fromkeys(media))
 
     def select_service_catalog(
         self,

@@ -1,6 +1,8 @@
+from functools import lru_cache
 from pathlib import Path
 
 
+@lru_cache(maxsize=None)
 def load_policy(
     name: str,
 ) -> str:

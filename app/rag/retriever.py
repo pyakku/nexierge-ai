@@ -1,3 +1,4 @@
+import logging
 from time import perf_counter
 
 from app.models.brain import Brain
@@ -9,6 +10,7 @@ from app.rag.settings import (
     SCORE_RATIO,
 )
 
+logger = logging.getLogger(__name__)
 
 BRAIN_FILTERS = {
     Brain.GENERAL: "GENERAL",
@@ -35,48 +37,31 @@ class Retriever:
 
         start = perf_counter()
 
-        embedding = embed_query(
-            query
-        )
-
+        embedding = embed_query(query)
         embedding_time = perf_counter()
 
-        brain_filter = BRAIN_FILTERS[
-            brain_id
-        ]
+        brain_filter = BRAIN_FILTERS[brain_id]
 
         status_filter = (
             {
                 "$or": [
-                    {
-                        "status": "active",
-                    },
-                    {
-                        "status": "deployed",
-                    },
+                    {"status": "active"},
+                    {"status": "deployed"},
                 ]
             }
             if sandbox
-            else {
-                "status": "deployed",
-            }
+            else {"status": "deployed"}
         )
 
         filter = {
             "$and": [
                 {
                     "$or": [
-                        {
-                            "GENERAL": True,
-                        },
-                        {
-                            brain_filter: True,
-                        },
+                        {"GENERAL": True},
+                        {brain_filter: True},
                     ]
                 },
-                {
-                    "hotel_id": hotel_id,
-                },
+                {"hotel_id": hotel_id},
                 status_filter,
             ]
         }
@@ -90,38 +75,41 @@ class Retriever:
 
         pinecone_time = perf_counter()
 
-        print(
-            f"Embedding: {(embedding_time - start) * 1000:.0f}ms"
-        )
-
-        print(
-            f"Pinecone: {(pinecone_time - embedding_time) * 1000:.0f}ms"
-        )
-
         matches = results["matches"]
 
         if not matches:
+            logger.debug(
+                "retriever.complete",
+                extra={
+                    "embedding_ms": int((embedding_time - start) * 1000),
+                    "pinecone_ms": int((pinecone_time - embedding_time) * 1000),
+                    "total_ms": int((pinecone_time - start) * 1000),
+                    "matches": 0,
+                    "returned": 0,
+                },
+            )
             return []
 
         best_score = matches[0]["score"]
-
         threshold = best_score * SCORE_RATIO
 
-        filtered_ids = []
-
-        for match in matches:
-
-            if match["score"] >= threshold:
-                filtered_ids.append(
-                    match["id"]
-                )
+        filtered_ids = [
+            match["id"]
+            for match in matches
+            if match["score"] >= threshold
+        ]
 
         end = perf_counter()
 
-        print(
-            f"Retriever Total: {(end - start) * 1000:.0f}ms"
+        logger.debug(
+            "retriever.complete",
+            extra={
+                "embedding_ms": int((embedding_time - start) * 1000),
+                "pinecone_ms": int((pinecone_time - embedding_time) * 1000),
+                "total_ms": int((end - start) * 1000),
+                "matches": len(matches),
+                "returned": len(filtered_ids[:MAX_CONTEXT_ITEMS]),
+            },
         )
 
-        return filtered_ids[
-            :MAX_CONTEXT_ITEMS
-        ]
+        return filtered_ids[:MAX_CONTEXT_ITEMS]

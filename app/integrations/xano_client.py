@@ -1,52 +1,58 @@
 import os
+import time
 
 import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
+_MAX_RETRIES = 3
+_RETRY_STATUSES = {500, 502, 503, 504}
+
 
 class XanoClient:
 
     def __init__(self):
-        self.base_url = os.getenv(
-            "XANO_BASE_URL"
-        )
-
+        self.base_url = os.getenv("XANO_BASE_URL")
         self.headers = {
-            "auth": os.getenv(
-                "XANO_PYTHON_KEY"
-            )
+            "auth": os.getenv("XANO_PYTHON_KEY")
         }
+        self._client = httpx.Client(timeout=30)
 
-    def post(
+    def _request(
         self,
+        method: str,
         endpoint: str,
-        data: dict,
+        **kwargs,
     ):
-        response = httpx.post(
-            f"{self.base_url}/{endpoint}",
-            json=data,
-            headers=self.headers,
-            timeout=30,
-        )
+        url = f"{self.base_url}/{endpoint}"
+        last_exc = None
 
-        response.raise_for_status()
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = self._client.request(
+                    method,
+                    url,
+                    headers=self.headers,
+                    **kwargs,
+                )
+                if (
+                    response.status_code in _RETRY_STATUSES
+                    and attempt < _MAX_RETRIES - 1
+                ):
+                    time.sleep(2 ** attempt)
+                    continue
+                response.raise_for_status()
+                return response.json()
+            except httpx.TransportError as exc:
+                last_exc = exc
+                if attempt < _MAX_RETRIES - 1:
+                    time.sleep(2 ** attempt)
 
-        return response.json()
+        raise last_exc
 
-    def get(
-        self,
-        endpoint: str,
-        params: dict,
-    ):
-        response = httpx.get(
-            f"{self.base_url}/{endpoint}",
-            params=params,
-            headers=self.headers,
-            timeout=30,
-        )
+    def post(self, endpoint: str, data: dict):
+        return self._request("POST", endpoint, json=data)
 
-        response.raise_for_status()
-
-        return response.json()
+    def get(self, endpoint: str, params: dict):
+        return self._request("GET", endpoint, params=params)

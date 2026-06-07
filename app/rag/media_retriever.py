@@ -1,3 +1,4 @@
+import logging
 import os
 from time import perf_counter
 
@@ -10,6 +11,9 @@ from app.rag.settings import (
     SCORE_RATIO,
     TOP_K,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class MediaRetriever:
@@ -84,17 +88,19 @@ class MediaRetriever:
 
         pinecone_time = perf_counter()
 
-        print(
-            f"Media Embedding: {(embedding_time - start) * 1000:.0f}ms"
-        )
-
-        print(
-            f"Media Pinecone: {(pinecone_time - embedding_time) * 1000:.0f}ms"
-        )
-
         matches = results["matches"]
 
         if not matches:
+            logger.debug(
+                "media_retriever.complete",
+                extra={
+                    "embedding_ms": int((embedding_time - start) * 1000),
+                    "pinecone_ms": int((pinecone_time - embedding_time) * 1000),
+                    "total_ms": int((pinecone_time - start) * 1000),
+                    "matches": 0,
+                    "returned": 0,
+                },
+            )
             return []
 
         best_score = matches[0]["score"]
@@ -102,32 +108,28 @@ class MediaRetriever:
         items = []
 
         for match in matches:
-
             if match["score"] < threshold:
                 continue
-
-            metadata = match.get(
-                "metadata", {}
-            )
-
+            metadata = match.get("metadata", {})
             url = metadata.get("url")
-
             if not url:
                 continue
-
-            items.append(
-                {
-                    "url": url,
-                    "desc": metadata.get(
-                        "desc", ""
-                    ),
-                }
-            )
+            items.append({
+                "url": url,
+                "desc": metadata.get("desc", ""),
+            })
 
         end = perf_counter()
 
-        print(
-            f"Media Total: {(end - start) * 1000:.0f}ms"
+        logger.debug(
+            "media_retriever.complete",
+            extra={
+                "embedding_ms": int((embedding_time - start) * 1000),
+                "pinecone_ms": int((pinecone_time - embedding_time) * 1000),
+                "total_ms": int((end - start) * 1000),
+                "matches": len(matches),
+                "returned": len(items[:MAX_CONTEXT_ITEMS]),
+            },
         )
 
         return items[:MAX_CONTEXT_ITEMS]

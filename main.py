@@ -26,14 +26,32 @@
 #     )
 # )
 
-from fastapi import FastAPI
+import os
+import uuid
+
+from fastapi import FastAPI, Request
 
 from app.api.chat import router as chat_router
+from app.core.context import correlation_id
+from app.core.logging_config import setup as setup_logging
 
-app = FastAPI(
-    title="Nexierge AI",
-)
+setup_logging(level=os.getenv("LOG_LEVEL", "DEBUG"))
 
-app.include_router(
-    chat_router
-)
+app = FastAPI(title="Nexierge AI")
+
+
+@app.middleware("http")
+async def correlation_id_middleware(
+    request: Request,
+    call_next,
+):
+    cid = request.headers.get(
+        "X-Correlation-ID", str(uuid.uuid4())
+    )
+    correlation_id.set(cid)
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = cid
+    return response
+
+
+app.include_router(chat_router)

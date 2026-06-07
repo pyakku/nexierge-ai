@@ -3,4 +3,4 @@ from openai import OpenAI
 
 load_dotenv()
 
-client = OpenAI()
+client = OpenAI(max_retries=3)

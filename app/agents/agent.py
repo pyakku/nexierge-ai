@@ -1,51 +1,32 @@
+import logging
+import re
 from time import perf_counter
 
-import re
-
-from app.agents.router import Router
 from app.brains.router import get_brain_name
+from app.core.llm import generate, generate_with_tools
 from app.core.message_builder import build_messages
 from app.core.policy_loader import load_policy
 from app.core.prompt_loader import load_prompt
-from app.core.workflow_finder import (
-    get_active_workflow,
-)
-from app.models.agent_response import (
-    AgentResponse,
-    ServiceCatalog,
-)
+from app.core.workflow_finder import get_active_workflow
+from app.models.agent_response import AgentResponse, ServiceCatalog
 from app.models.chat_request import ChatRequest
-from app.services.response_generator import (
-    ResponseGenerator,
-)
-from app.tools.executor import (
-    ToolExecutor,
-)
+from app.tools.executor import ToolExecutor
+from app.tools.registry import get_tool_definitions
+
+logger = logging.getLogger(__name__)
+
+_MAX_TOOL_ROUNDS = 3
 
 
 class Agent:
 
     HANDOFF_WORKFLOW = "handoff"
-    AWAITING_CONFIRMATION = (
-        "awaiting_confirmation"
-    )
-    HANDOFF_SUCCESS = (
-        "handoff_success"
-    )
-    HANDOFF_CANCELLED = (
-        "handoff_cancelled"
-    )
+    AWAITING_CONFIRMATION = "awaiting_confirmation"
+    HANDOFF_SUCCESS = "handoff_success"
+    HANDOFF_CANCELLED = "handoff_cancelled"
 
     def __init__(self):
-        self.router = Router()
-
-        self.response_generator = (
-            ResponseGenerator()
-        )
-
-        self.tool_executor = (
-            ToolExecutor()
-        )
+        self.tool_executor = ToolExecutor()
 
     def respond(
         self,
@@ -55,199 +36,148 @@ class Agent:
         start = perf_counter()
 
         #
-        # ACTIVE WORKFLOW
+        # ACTIVE WORKFLOW — bypasses tool-use entirely
         #
-        active_workflow = (
-            get_active_workflow(
-                request.message_history
-            )
-        )
+        active_workflow = get_active_workflow(request.message_history)
 
         if active_workflow:
-
-            print(
-                "\n=== ACTIVE WORKFLOW ==="
+            logger.info(
+                "workflow.active",
+                extra={
+                    "workflow": active_workflow.workflow,
+                    "status": active_workflow.status,
+                },
             )
 
-            print(active_workflow)
-
-            brain = get_brain_name(
-                request.brain_id
-            )
-
+            brain = get_brain_name(request.brain_id)
             messages = build_messages(
                 request=request,
-                system_prompt=load_prompt(
-                    brain
-                ),
-                workflow_context=(
-                    self.get_workflow_context(
-                        active_workflow
-                    )
-                ),
+                system_prompt="\n\n".join([
+                    load_prompt(brain),
+                    load_policy("tone"),
+                ]),
+                workflow_context=self.get_workflow_context(active_workflow),
             )
 
-            response = (
-                self.response_generator.generate(
-                    messages
-                )
-            )
-
+            response = generate([m.model_dump() for m in messages])
             response.data_used = []
 
+            logger.info(
+                "request.complete",
+                extra={
+                    "path": "active_workflow",
+                    "latency_ms": int((perf_counter() - start) * 1000),
+                },
+            )
             return response
 
         #
-        # ROUTER
+        # MAIN PATH — single LLM with tool-use
         #
-        decision = self.router.route(
-            request.query,
-            request.brain_id,
-        )
-
-        router_time = perf_counter()
-
-        print("\n=== ROUTER ===")
-        print(decision)
-
-        #
-        # TOOL EXECUTION
-        #
-        knowledge_context = ""
-        media_context = ""
-        ordering_context = ""
-        workflow_context = ""
-        ordering_link = None
-        media = []
-
-        if decision.intent == "HANDOFF":
-            workflow_context = (
-                self.get_handoff_start_context()
-            )
-
-        if decision.tools:
-
-            tool_start = (
-                perf_counter()
-            )
-
-            tool_result = (
-                self.tool_executor.execute(
-                    tools=decision.tools,
-                    request=request,
-                )
-            )
-
-            knowledge_context = (
-                tool_result.knowledge_context
-            )
-            media_context = (
-                tool_result.media_context
-            )
-            ordering_context = (
-                tool_result.ordering_context
-            )
-            ordering_link = (
-                tool_result.ordering_link
-            )
-            media = tool_result.media
-
-            tool_time = (
-                perf_counter()
-            )
-
-            print(
-                f"Tool ({decision.tools}): "
-                f"{(tool_time - tool_start) * 1000:.0f}ms"
-            )
-
-        #
-        # BRAIN
-        #
-        brain = get_brain_name(
-            request.brain_id
-        )
-
+        brain = get_brain_name(request.brain_id)
         messages = build_messages(
             request=request,
-            system_prompt="\n\n".join(
-                [
-                    load_prompt(brain),
-                    load_policy("rag"),
-                ]
-            ),
-            knowledge_context=knowledge_context,
-            media_context=media_context,
-            ordering_context=ordering_context,
-            workflow_context=workflow_context,
+            system_prompt="\n\n".join([
+                load_prompt(brain),
+                load_policy("rag"),
+                load_policy("handoff"),
+                load_policy("tone"),
+            ]),
         )
 
-        message_time = (
-            perf_counter()
-        )
+        tools = get_tool_definitions(request.brain_id)
+        current_input = [m.model_dump() for m in messages]
+        tool_call_names: list[str] = []
+        ordering_link = None
+        media: list[str] = []
+        response = None
 
-        response = (
-            self.response_generator.generate(
-                messages
+        #
+        # TOOL-USE LOOP
+        #
+        for round_num in range(_MAX_TOOL_ROUNDS):
+
+            response, tool_calls = generate_with_tools(current_input, tools)
+
+            if not tool_calls:
+                break
+
+            tool_call_names.extend(tc.name for tc in tool_calls)
+            logger.info(
+                "tools.round",
+                extra={
+                    "round": round_num + 1,
+                    "tools": [tc.name for tc in tool_calls],
+                },
             )
-        )
 
-        if "get_answers" not in decision.tools:
+            tool_start = perf_counter()
+            tool_outputs, round_link, round_media = (
+                self.tool_executor.execute_tool_calls(tool_calls, request)
+            )
+            logger.info(
+                "tools.executed",
+                extra={
+                    "tools": [tc.name for tc in tool_calls],
+                    "latency_ms": int((perf_counter() - tool_start) * 1000),
+                },
+            )
+
+            if round_link:
+                ordering_link = round_link
+            media.extend(round_media)
+
+            current_input = [
+                *current_input,
+                *[
+                    {
+                        "type": "function_call",
+                        "id": tc.id,
+                        "call_id": tc.call_id,
+                        "name": tc.name,
+                        "arguments": tc.arguments,
+                    }
+                    for tc in tool_calls
+                ],
+                *tool_outputs,
+            ]
+        else:
+            # Exhausted rounds without a direct response — force final call without tools
+            response = generate(current_input)
+
+        #
+        # POST-PROCESS
+        #
+        if "get_answers" not in tool_call_names:
             response.data_used = []
 
         if ordering_link:
-            response.service_catalog = (
-                ServiceCatalog(
-                    link=ordering_link,
-                    message="",
-                    image="",
-                )
+            response.service_catalog = ServiceCatalog(
+                link=ordering_link,
+                message="",
+                image="",
             )
 
         if media:
             response.media = list(
-                dict.fromkeys(
-                    [
-                        *response.media,
-                        *media,
-                    ]
-                )
+                dict.fromkeys([*response.media, *media])
             )
 
-        llm_time = (
-            perf_counter()
-        )
-
-        print(
-            f"Router: {(router_time - start) * 1000:.0f}ms"
-        )
-
-        print(
-            f"Messages: {(message_time - router_time) * 1000:.0f}ms"
-        )
-
-        print(
-            f"LLM: {(llm_time - message_time) * 1000:.0f}ms"
-        )
-
-        print(
-            f"Total: {(llm_time - start) * 1000:.0f}ms"
+        logger.info(
+            "request.complete",
+            extra={
+                "path": "tool_use",
+                "tools_called": tool_call_names,
+                "latency_ms": int((perf_counter() - start) * 1000),
+            },
         )
 
         return response
 
-    def get_workflow_context(
-        self,
-        workflow_state,
-    ) -> str:
+    def get_workflow_context(self, workflow_state) -> str:
 
-        if (
-            workflow_state.workflow
-            == self.HANDOFF_WORKFLOW
-        ):
-            return self.get_handoff_active_context(
-                workflow_state.status
-            )
+        if workflow_state.workflow == self.HANDOFF_WORKFLOW:
+            return self.get_handoff_active_context(workflow_state.status)
 
         safe_workflow = re.sub(
             r"[^a-z0-9_]", "", workflow_state.workflow.lower()
@@ -263,28 +193,7 @@ workflow={safe_workflow}
 status={safe_status}
 """.strip()
 
-    def get_handoff_start_context(
-        self,
-    ) -> str:
-
-        return f"""
-Workflow Instruction:
-
-The guest asked for a human handoff.
-Ask only for confirmation.
-Do not ask any follow-up questions about the issue.
-
-Required output:
-- is_confirmation=true
-- handoff=false
-- workflow_state.workflow="{self.HANDOFF_WORKFLOW}"
-- workflow_state.status="{self.AWAITING_CONFIRMATION}"
-""".strip()
-
-    def get_handoff_active_context(
-        self,
-        status: str,
-    ) -> str:
+    def get_handoff_active_context(self, status: str) -> str:
 
         return f"""
 Active Workflow:
