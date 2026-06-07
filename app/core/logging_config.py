@@ -11,6 +11,9 @@ _SKIP = frozenset({
     "message", "asctime",
 })
 
+_W  = "─" * 44
+_WW = "═" * 44
+
 
 def _extra(record: logging.LogRecord) -> dict:
     return {k: v for k, v in record.__dict__.items() if k not in _SKIP and not k.startswith("_")}
@@ -18,68 +21,84 @@ def _extra(record: logging.LogRecord) -> dict:
 
 class _HumanFormatter(logging.Formatter):
 
-    def format(self, record: logging.LogRecord) -> str:
+    def format(self, record: logging.LogRecord) -> str:  # noqa: A003
         record.message = record.getMessage()
         msg = record.message
         x = _extra(record)
 
         if msg == "llm.call":
             tools = x.get("tool_calls") or []
-            lines = ["\n----LLM----"]
-            lines.append(f"tools: {', '.join(tools)}" if tools else "direct response")
-            lines.append(f"{x.get('latency_ms', '?')}ms")
-            return "\n".join(lines)
+            model = x.get("model", "")
+            ms = x.get("latency_ms", "?")
+            if tools:
+                body = f"  tools : {', '.join(tools)}"
+            else:
+                body = "  result: direct response"
+            return f"\n┌─ LLM  {model}  {ms}ms\n{body}"
 
         if msg == "tools.round":
             tools = x.get("tools") or []
-            return f"\n----Tools (round {x.get('round', '?')})----\ncalling: {', '.join(tools)}"
+            r = x.get("round", "?")
+            return f"│\n├─ Round {r}  →  {', '.join(tools)}"
 
         if msg == "tool.executed":
-            return f"  {x.get('tool', '?')}  {x.get('latency_ms', '?')}ms"
-
-        if msg == "request.complete":
-            return f"\nTotal: {x.get('latency_ms', '?')}ms\n{'─' * 40}"
+            return f"│  [{x.get('tool', '?')}]  {x.get('latency_ms', '?')}ms"
 
         if msg == "retriever.complete":
             return (
-                f"  retriever  embed={x.get('embedding_ms')}ms  "
-                f"pinecone={x.get('pinecone_ms')}ms  "
-                f"matches={x.get('matches')}  returned={x.get('returned')}"
+                f"│    embed {x.get('embedding_ms')}ms  "
+                f"pinecone {x.get('pinecone_ms')}ms  "
+                f"matches {x.get('matches')}  returned {x.get('returned')}"
             )
 
         if msg == "knowledge.complete":
             return (
-                f"  knowledge  retrieval={x.get('retrieval_ms')}ms  "
-                f"xano={x.get('xano_ms')}ms  "
-                f"items={x.get('items_returned')}"
+                f"│    xano {x.get('xano_ms')}ms  "
+                f"items {x.get('items_returned')}"
             )
 
         if msg == "media_retriever.complete":
             return (
-                f"  media  embed={x.get('embedding_ms')}ms  "
-                f"pinecone={x.get('pinecone_ms')}ms  "
-                f"returned={x.get('returned')}"
+                f"│    embed {x.get('embedding_ms')}ms  "
+                f"pinecone {x.get('pinecone_ms')}ms  "
+                f"returned {x.get('returned')}"
             )
 
-        if msg == "workflow.active":
-            return f"\n----Workflow----\n{x.get('workflow')} / {x.get('status')}"
+        if msg == "media.results":
+            items = x.get("items") or []
+            lines = [f"│    media found ({len(items)}):"]
+            for item in items:
+                desc = (item.get("desc") or "")[:80]
+                url = (item.get("url") or "").split("/")[-1]
+                lines.append(f"│      • {url}  —  {desc}")
+            return "\n".join(lines)
 
         if msg == "tools.executed":
             tools = x.get("tools") or []
-            return f"  done: {', '.join(tools)}  {x.get('latency_ms', '?')}ms"
+            return f"│  done: {', '.join(tools)}  {x.get('latency_ms', '?')}ms total"
 
-        if record.exc_info:
-            return f"[ERROR] {msg}\n{self.formatException(record.exc_info)}"
+        if msg == "workflow.active":
+            return f"\n┌─ Workflow  {x.get('workflow')} / {x.get('status')}"
 
-        if x:
-            return f"[{record.levelname}] {msg}  {x}"
-        return f"[{record.levelname}] {msg}"
+        if msg == "request.complete":
+            ms = x.get("latency_ms", "?")
+            tools = x.get("tools_called") or []
+            tools_str = f"  tools: {', '.join(tools)}" if tools else ""
+            return f"└─ done  {ms}ms{tools_str}\n{_W}"
+
+        if record.levelno >= logging.ERROR:
+            exc = f"\n{self.formatException(record.exc_info)}" if record.exc_info else ""
+            return f"\n{'!'*44}\nERROR  {msg}{exc}\n{'!'*44}"
+
+        if record.levelno >= logging.WARNING:
+            return f"[WARN]  {msg}  {x}" if x else f"[WARN]  {msg}"
+
+        return f"[{record.levelname}]  {msg}" + (f"  {x}" if x else "")
 
 
 class _JsonFormatter(logging.Formatter):
-    import json as _json
 
-    def format(self, record: logging.LogRecord) -> str:
+    def format(self, record: logging.LogRecord) -> str:  # noqa: A003
         import json
         record.message = record.getMessage()
         data = {
@@ -104,6 +123,5 @@ def setup(level: str = "DEBUG") -> None:
     root.setLevel(level)
     root.handlers = [handler]
 
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("openai").setLevel(logging.WARNING)
-    logging.getLogger("pinecone").setLevel(logging.WARNING)
+    for noisy in ("httpx", "httpcore", "openai", "pinecone"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)

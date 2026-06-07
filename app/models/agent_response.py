@@ -18,7 +18,7 @@ class AgentResponse(BaseModel):
     suggested_question: str | None = None
     service_catalog: ServiceCatalog | None = None
     data_used: list[str] = Field(default_factory=list)
-    service_catalog_message: str | None = None
+    service_catalog_message: str | None = Field(default=None, exclude=True)
     workflow_state: (
     WorkflowState | None
 ) = None
