@@ -26,6 +26,12 @@ class _HumanFormatter(logging.Formatter):
         msg = record.message
         x = _extra(record)
 
+        if msg == "router":
+            intent = x.get("intent", "?")
+            reason = x.get("reason", "")
+            ms = x.get("latency_ms", "?")
+            return f"\n┌─ Router  {ms}ms  →  {intent}\n│  {reason}"
+
         if msg == "llm.call":
             tools = x.get("tool_calls") or []
             model = x.get("model", "")
