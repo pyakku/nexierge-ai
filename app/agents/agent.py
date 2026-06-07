@@ -85,18 +85,24 @@ class Agent:
             ]),
         )
 
-        tools = get_tool_definitions(request.brain_id)
+        all_tools = get_tool_definitions(request.brain_id)
         current_input = [m.model_dump() for m in messages]
         tool_call_names: list[str] = []
         ordering_link = None
         catalog_logo: str | None = None
         response = None
 
+        # Tools that should only be called once per request
+        _ONE_SHOT_TOOLS = {"get_answers", "get_media", "get_service_catalogs", "room_details"}
+
         #
         # TOOL-USE LOOP
         #
         first_round = True
         for round_num in range(_MAX_TOOL_ROUNDS):
+            # Remove already-called one-shot tools so the LLM doesn't loop
+            called_set = set(tool_call_names)
+            tools = [t for t in all_tools if t["name"] not in (called_set & _ONE_SHOT_TOOLS)]
 
             response, tool_calls = generate_with_tools(current_input, tools)
 
@@ -107,7 +113,7 @@ class Agent:
                     extra={
                         "intent": response.intent if response else None,
                         "reason": response.intent_reason if response else None,
-                        "tools_called": [tc.name for tc in tool_calls],
+                        "tools": [tc.name for tc in tool_calls],
                     },
                 )
 
@@ -168,7 +174,8 @@ class Agent:
                 item.strip("[]") for item in response.data_used
             ]
 
-        if ordering_link:
+        response.service_catalog = None
+        if ordering_link and ordering_link.startswith("http"):
             response.service_catalog = ServiceCatalog(
                 link=ordering_link,
                 message=response.service_catalog_message or "",
