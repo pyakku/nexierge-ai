@@ -259,19 +259,17 @@ class ToolExecutor:
         self,
         tool_calls: list,
         request: ChatRequest,
-    ) -> tuple[list[dict], str | None, list[str], str | None]:
+    ) -> tuple[list[dict], str | None, str | None]:
         """
         Execute tool calls from the LLM (tool-use flow).
 
         Returns:
             tool_outputs: function_call_output dicts for the next LLM input
             ordering_link: populated if generate_ordering_link ran
-            media: collected media URLs
             catalog_logo: logo URL from get_service_catalogs
         """
         tool_outputs = []
         ordering_link = None
-        media = []
         catalog_id: str | None = None
         catalog_logo: str | None = None
 
@@ -304,7 +302,6 @@ class ToolExecutor:
                 ordering_link = result.ordering_link
             if result.catalog_logo:
                 catalog_logo = result.catalog_logo
-            media.extend(result.media)
 
             parts = [
                 p for p in [
@@ -321,7 +318,7 @@ class ToolExecutor:
                 "output": "\n\n".join(parts) if parts else "Done.",
             })
 
-        return tool_outputs, ordering_link, list(dict.fromkeys(media)), catalog_logo
+        return tool_outputs, ordering_link, catalog_logo
 
     def select_service_catalog(
         self,
