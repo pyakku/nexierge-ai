@@ -95,9 +95,21 @@ class Agent:
         #
         # TOOL-USE LOOP
         #
+        first_round = True
         for round_num in range(_MAX_TOOL_ROUNDS):
 
             response, tool_calls = generate_with_tools(current_input, tools)
+
+            if first_round:
+                first_round = False
+                logger.info(
+                    "intent",
+                    extra={
+                        "intent": response.intent if response else None,
+                        "reason": response.intent_reason if response else None,
+                        "tools_called": [tc.name for tc in tool_calls],
+                    },
+                )
 
             if not tool_calls:
                 break
@@ -149,15 +161,6 @@ class Agent:
         #
         # POST-PROCESS
         #
-        logger.info(
-            "intent",
-            extra={
-                "intent": response.intent,
-                "reason": response.intent_reason,
-                "tools": tool_call_names,
-            },
-        )
-
         if "get_answers" not in tool_call_names:
             response.data_used = []
         else:

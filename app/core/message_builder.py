@@ -10,9 +10,13 @@ def _build_request_settings(request: ChatRequest) -> str:
             lines.append(f"  {key}={val}")
     lines += [
         "",
+        "Greeting Rule:",
+        "If the current query is a greeting or small talk (e.g. 'hi', 'hello', 'how are you', 'good morning') with no hotel question, respond directly. Do NOT call any tools.",
+        "This is a hard rule — do not override it for any reason.",
+        "",
         "Intent Tracking:",
         "Always populate the intent field with a short label for what the guest is asking (e.g. 'greeting', 'breakfast_hours', 'room_service_order', 'handoff_request').",
-        "Always populate the intent_reason field with one sentence explaining why you interpreted it that way and what action you took.",
+        "Always populate the intent_reason field with one sentence explaining why you interpreted it that way and what action you took (or will take).",
         "",
         "Language Rule:",
         "Always respond in the same language as the guest's query.",
