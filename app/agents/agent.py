@@ -89,6 +89,7 @@ class Agent:
         current_input = [m.model_dump() for m in messages]
         tool_call_names: list[str] = []
         ordering_link = None
+        catalog_logo: str | None = None
         media: list[str] = []
         response = None
 
@@ -112,7 +113,7 @@ class Agent:
             )
 
             tool_start = perf_counter()
-            tool_outputs, round_link, round_media = (
+            tool_outputs, round_link, round_media, round_logo = (
                 self.tool_executor.execute_tool_calls(tool_calls, request)
             )
             logger.info(
@@ -125,6 +126,8 @@ class Agent:
 
             if round_link:
                 ordering_link = round_link
+            if round_logo:
+                catalog_logo = round_logo
             media.extend(round_media)
 
             current_input = [
@@ -158,8 +161,8 @@ class Agent:
         if ordering_link:
             response.service_catalog = ServiceCatalog(
                 link=ordering_link,
-                message="",
-                image="",
+                message=response.service_catalog_message or "",
+                image=catalog_logo or "",
             )
 
         if media:

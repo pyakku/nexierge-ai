@@ -202,27 +202,22 @@ class ToolExecutor:
             if not selected_catalog:
                 return ToolResult()
 
+            logo = (selected_catalog.get("logo") or {}).get("url") or ""
+
             return ToolResult(
                 ordering_context="\n\n".join(
                     [
                         "Available service catalogs:",
                         "\n".join(
-                            (
-                                f"- {catalog['name']}: "
-                                f"{catalog['description']}"
-                            )
+                            f"- {catalog['name']}: {catalog['description']}"
                             for catalog in catalogs
                         ),
                         "Selected service catalog:",
-                        (
-                            f"{selected_catalog['name']} "
-                            f"({selected_catalog['id']})"
-                        ),
+                        f"{selected_catalog['name']} ({selected_catalog['id']})",
                     ]
                 ),
-                service_catalog_id=selected_catalog[
-                    "id"
-                ],
+                service_catalog_id=selected_catalog["id"],
+                catalog_logo=logo,
             )
 
         #
@@ -243,11 +238,10 @@ class ToolExecutor:
                 return ToolResult()
 
             return ToolResult(
-                ordering_context=f"""
-Generate ordering link using:
-- guest_stay_id: {request.guest_stay_id}
-- service_catalog_id: {service_catalog_id}
-""".strip(),
+                ordering_context=(
+                    f"Ordering link generated for guest_stay_id={request.guest_stay_id}.\n"
+                    "Populate service_catalog_message with a short, natural message inviting the guest to use the link."
+                ),
                 ordering_link=self.get_ordering_link(
                     guest_stay_id=request.guest_stay_id,
                     service_catalog_id=service_catalog_id,
@@ -260,7 +254,7 @@ Generate ordering link using:
         self,
         tool_calls: list,
         request: ChatRequest,
-    ) -> tuple[list[dict], str | None, list[str]]:
+    ) -> tuple[list[dict], str | None, list[str], str | None]:
         """
         Execute tool calls from the LLM (tool-use flow).
 
@@ -268,11 +262,13 @@ Generate ordering link using:
             tool_outputs: function_call_output dicts for the next LLM input
             ordering_link: populated if generate_ordering_link ran
             media: collected media URLs
+            catalog_logo: logo URL from get_service_catalogs
         """
         tool_outputs = []
         ordering_link = None
         media = []
         catalog_id: str | None = None
+        catalog_logo: str | None = None
 
         for tc in tool_calls:
             try:
@@ -301,6 +297,8 @@ Generate ordering link using:
                 catalog_id = result.service_catalog_id
             if result.ordering_link:
                 ordering_link = result.ordering_link
+            if result.catalog_logo:
+                catalog_logo = result.catalog_logo
             media.extend(result.media)
 
             parts = [
@@ -318,7 +316,7 @@ Generate ordering link using:
                 "output": "\n\n".join(parts) if parts else "Done.",
             })
 
-        return tool_outputs, ordering_link, list(dict.fromkeys(media))
+        return tool_outputs, ordering_link, list(dict.fromkeys(media)), catalog_logo
 
     def select_service_catalog(
         self,
