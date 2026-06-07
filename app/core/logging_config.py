@@ -36,6 +36,13 @@ class _HumanFormatter(logging.Formatter):
                 body = "  result: direct response"
             return f"\n┌─ LLM  {model}  {ms}ms\n{body}"
 
+        if msg == "intent":
+            intent = x.get("intent") or "—"
+            reason = x.get("reason") or "—"
+            tools = x.get("tools") or []
+            tools_str = f"  tools: {', '.join(tools)}" if tools else "  no tools"
+            return f"│  intent : {intent}\n│  reason : {reason}\n│{tools_str}"
+
         if msg == "tools.round":
             tools = x.get("tools") or []
             r = x.get("round", "?")

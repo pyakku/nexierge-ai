@@ -149,6 +149,15 @@ class Agent:
         #
         # POST-PROCESS
         #
+        logger.info(
+            "intent",
+            extra={
+                "intent": response.intent,
+                "reason": response.intent_reason,
+                "tools": tool_call_names,
+            },
+        )
+
         if "get_answers" not in tool_call_names:
             response.data_used = []
         else:
