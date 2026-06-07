@@ -8,6 +8,7 @@ WorkflowStatus = Literal[
     "awaiting_confirmation",
     "handoff_success",
     "handoff_cancelled",
+    "completed",
 ]
 
 
