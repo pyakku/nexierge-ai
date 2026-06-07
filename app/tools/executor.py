@@ -158,7 +158,7 @@ class ToolExecutor:
 
             logger.debug(
                 "media.results",
-                extra={"items": [{"desc": i.get("desc", ""), "url": i["url"]} for i in media_items]},
+                extra={"items": [{"desc": i.get("desc", ""), "url": i["url"], "score": i.get("score", 0)} for i in media_items]},
             )
 
             items_text = "\n\n".join(

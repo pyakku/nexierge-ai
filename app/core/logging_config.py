@@ -65,19 +65,25 @@ class _HumanFormatter(logging.Formatter):
             )
 
         if msg == "media_retriever.complete":
+            best = x.get("best_score")
+            floor = x.get("min_score")
+            best_str = f"  best={best:.2f}" if best is not None else ""
+            floor_str = f"  floor={floor}" if floor is not None else ""
             return (
                 f"│    embed {x.get('embedding_ms')}ms  "
                 f"pinecone {x.get('pinecone_ms')}ms  "
                 f"returned {x.get('returned')}"
+                f"{best_str}{floor_str}"
             )
 
         if msg == "media.results":
             items = x.get("items") or []
             lines = [f"│    media found ({len(items)}):"]
             for item in items:
-                desc = (item.get("desc") or "")[:80]
+                score = item.get("score", 0)
+                desc = (item.get("desc") or "")[:70]
                 url = (item.get("url") or "").split("/")[-1]
-                lines.append(f"│      • {url}  —  {desc}")
+                lines.append(f"│      • {score:.0%}  {url}  —  {desc}")
             return "\n".join(lines)
 
         if msg == "tools.executed":

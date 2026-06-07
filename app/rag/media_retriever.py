@@ -8,6 +8,7 @@ from app.rag.pinecone_client import get_index
 from app.rag.retriever import BRAIN_FILTERS
 from app.rag.settings import (
     MAX_CONTEXT_ITEMS,
+    MEDIA_MIN_SCORE,
     SCORE_RATIO,
     TOP_K,
 )
@@ -104,11 +105,14 @@ class MediaRetriever:
             return []
 
         best_score = matches[0]["score"]
-        threshold = best_score * SCORE_RATIO
+        relative_threshold = best_score * SCORE_RATIO
         items = []
 
         for match in matches:
-            if match["score"] < threshold:
+            score = match["score"]
+            if score < relative_threshold:
+                continue
+            if score < MEDIA_MIN_SCORE:
                 continue
             metadata = match.get("metadata", {})
             url = metadata.get("url")
@@ -117,6 +121,7 @@ class MediaRetriever:
             items.append({
                 "url": url,
                 "desc": metadata.get("desc", ""),
+                "score": round(score, 3),
             })
 
         end = perf_counter()
@@ -127,6 +132,8 @@ class MediaRetriever:
                 "embedding_ms": int((embedding_time - start) * 1000),
                 "pinecone_ms": int((pinecone_time - embedding_time) * 1000),
                 "total_ms": int((end - start) * 1000),
+                "best_score": round(best_score, 3),
+                "min_score": MEDIA_MIN_SCORE,
                 "matches": len(matches),
                 "returned": len(items[:MAX_CONTEXT_ITEMS]),
             },
