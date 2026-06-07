@@ -20,6 +20,9 @@ Data Used:
 - Only include IDs that were actually used to answer the question.
 - Never invent knowledge item IDs.
 - If no knowledge item was used, return an empty data_used array.
+- data_used is only for retrieved knowledge-base items from get_answers
+- Never include user messages, media descriptions, media URLs, or general reasoning in data_used
+- If get_answers was not used, data_used must be []
 
 Knowledge Base Priority:
 

@@ -7,10 +7,15 @@ def generate(
 ) -> AgentResponse:
 
     response = client.responses.parse(
-        model="gpt-5-mini",
+        model="gpt-4o-mini",
         input=messages,
         text_format=AgentResponse,
     )
 
-    return response.output_parsed
+    result = response.output_parsed
+    if result is None:
+        raise ValueError(
+            "LLM returned no structured output"
+        )
+    return result
 

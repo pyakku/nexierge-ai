@@ -5,7 +5,6 @@ from app.models.message import Message
 
 class ChatRequest(BaseModel):
     hotel_name: str
-    guest_language: str
     query: str
     sandbox: bool =False
     hotel_id: str

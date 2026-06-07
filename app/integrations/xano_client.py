@@ -34,3 +34,19 @@ class XanoClient:
         response.raise_for_status()
 
         return response.json()
+
+    def get(
+        self,
+        endpoint: str,
+        params: dict,
+    ):
+        response = httpx.get(
+            f"{self.base_url}/{endpoint}",
+            params=params,
+            headers=self.headers,
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+        return response.json()

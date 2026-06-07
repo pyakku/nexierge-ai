@@ -6,7 +6,6 @@
 
 # request = ChatRequest(
 #     hotel_name="Demo Hotel",
-#     guest_language="English",
 #     query="What time is breakfast?",
 #     sandbox="",
 #     hotel_id="c7be33f2-56cc-42ff-a36d-5f4d6a541354",

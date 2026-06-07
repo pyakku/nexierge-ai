@@ -1,4 +1,7 @@
 from pydantic import BaseModel, Field
+from app.models.workflow_state import (
+    WorkflowState,
+)
 
 
 class ServiceCatalog(BaseModel):
@@ -15,3 +18,6 @@ class AgentResponse(BaseModel):
     suggested_question: str | None = None
     service_catalog: ServiceCatalog | None = None
     data_used: list[str] = Field(default_factory=list)
+    workflow_state: (
+    WorkflowState | None
+) = None
