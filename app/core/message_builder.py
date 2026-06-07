@@ -12,7 +12,7 @@ def _build_request_settings(request: ChatRequest) -> str:
         "",
         "Greeting Rule:",
         "If the current query is a greeting or small talk (e.g. 'hi', 'hello', 'how are you', 'good morning') with no hotel question, respond directly. Do NOT call any tools.",
-        "This is a hard rule — do not override it for any reason.",
+        "This is a hard rule — do not override it for any reason. Never upsell anything on Greetings, no matter what the tone settings are.",
         "",
         "Intent Tracking:",
         "Always populate the intent field with a short label for what the guest is asking (e.g. 'greeting', 'breakfast_hours', 'room_service_order', 'handoff_request').",
@@ -125,6 +125,20 @@ Ordering Context:
                 content=message.message,
             )
         )
+
+    messages.append(
+        OpenAIMessage(
+            role="system",
+            content=(
+                "CURRENT QUERY REMINDER — read this before deciding whether to call any tools:\n"
+                "The guest's message below is the ONLY input that determines intent, language, and whether to call tools.\n"
+                "Message history is context only — never use it to infer what the guest is asking now.\n"
+                "If the current message is a greeting or social pleasantry in ANY language "
+                "(e.g. 'hi', 'hello', 'مرحبا', 'bonjour', 'hola', 'नमस्ते') with no hotel question, "
+                "respond with a short friendly greeting only. DO NOT call any tools. This is a hard rule."
+            ),
+        )
+    )
 
     messages.append(
         OpenAIMessage(

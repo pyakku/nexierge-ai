@@ -98,24 +98,12 @@ class Agent:
         #
         # TOOL-USE LOOP
         #
-        first_round = True
         for round_num in range(_MAX_TOOL_ROUNDS):
             # Remove already-called one-shot tools so the LLM doesn't loop
             called_set = set(tool_call_names)
             tools = [t for t in all_tools if t["name"] not in (called_set & _ONE_SHOT_TOOLS)]
 
             response, tool_calls = generate_with_tools(current_input, tools)
-
-            if first_round:
-                first_round = False
-                logger.info(
-                    "intent",
-                    extra={
-                        "intent": response.intent if response else None,
-                        "reason": response.intent_reason if response else None,
-                        "tools": [tc.name for tc in tool_calls],
-                    },
-                )
 
             if not tool_calls:
                 break
@@ -163,6 +151,15 @@ class Agent:
         else:
             # Exhausted rounds without a direct response — force final call without tools
             response = generate(current_input)
+
+        logger.info(
+            "intent",
+            extra={
+                "intent": response.intent,
+                "reason": response.intent_reason,
+                "tools": tool_call_names,
+            },
+        )
 
         #
         # POST-PROCESS
