@@ -12,29 +12,41 @@ class ToolDefinition:
 TOOLS = [
     ToolDefinition(
         name="get_answers",
-        description="Answer guest questions using the hotel knowledge base",
+        description=(
+            "Search the hotel knowledge base to answer a specific question about the hotel. "
+            "Call this when the guest asks about hotel facilities, services, policies, times, prices, or any hotel-specific information. "
+            "Do NOT call for greetings, small talk, or questions unrelated to the hotel."
+        ),
     ),
     ToolDefinition(
         name="get_media",
-        description="Retrieve photos, videos and other media assets",
+        description=(
+            "Retrieve relevant photos or media for a hotel topic. "
+            "Only call when the guest explicitly asks to see images, photos, or visual content. "
+            "Do NOT call for greetings, text questions, or when no visual is requested."
+        ),
     ),
     ToolDefinition(
         name="get_service_catalogs",
         description=(
-            "Retrieve hotel service catalogs. "
-            "Returns a list of catalogs with their IDs — "
-            "use the ID with generate_ordering_link."
+            "Retrieve available service catalogs (e.g. room service, spa, laundry). "
+            "Only call when the guest explicitly wants to ORDER or REQUEST a service. "
+            "Do NOT call for greetings, general questions, or informational queries."
         ),
     ),
     ToolDefinition(
         name="room_details",
-        description="Retrieve room information and room details",
+        description=(
+            "Retrieve details about the guest's room. "
+            "Only call when the guest asks specifically about their room."
+        ),
     ),
     ToolDefinition(
         name="generate_ordering_link",
         description=(
-            "Generate an ordering link for a service catalog. "
-            "Call get_service_catalogs first to obtain the service_catalog_id."
+            "Generate a direct ordering link for a service catalog. "
+            "Only call after get_service_catalogs has returned a service_catalog_id. "
+            "Only call when the guest wants to place an order."
         ),
     ),
 ]
