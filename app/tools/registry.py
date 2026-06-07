@@ -38,7 +38,7 @@ TOOLS = [
         name="room_details",
         description=(
             "Retrieve details about the guest's room. "
-            "Only call when the guest asks specifically about their room."
+            "Only call when the guest asks specifically about rooms."
         ),
     ),
     ToolDefinition(
