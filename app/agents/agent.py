@@ -150,6 +150,10 @@ class Agent:
         #
         if "get_answers" not in tool_call_names:
             response.data_used = []
+        else:
+            response.data_used = [
+                item.strip("[]") for item in response.data_used
+            ]
 
         if ordering_link:
             response.service_catalog = ServiceCatalog(

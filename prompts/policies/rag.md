@@ -24,6 +24,7 @@ Data Used:
 
 - Each knowledge item is prefixed with an ID in square brackets, e.g. `[abc123]`.
 - You MUST populate data_used with the IDs of every knowledge item you used to construct your response.
+- Write only the ID itself in data_used — do not include the square brackets. e.g. `"abc123"` not `"[abc123]"`.
 - Only include IDs that were actually used to answer the question.
 - Never invent knowledge item IDs.
 - If no knowledge item was used, return an empty data_used array.
